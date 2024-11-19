@@ -1,0 +1,34 @@
+# git repertory project configuration 
+# export GIT_SSL_NO_VERIFY=1
+[core] 
+	repositoryformatversion = 0 
+	filemode = true 
+	bare = false 
+	logallrefupdates = true 
+	symlinks = true 
+	ignorecase = false 
+	autocrlf = false 
+	safecrlf = warn 
+[http] 
+	sslVerify = false 
+[user] 
+	name = lsgxeva 
+	email = lsgxthink@gmail.com 
+[remote "origin"] 
+	url = https://github.com/lsgxeva/libwrt-mod.git 
+	fetch = +refs/heads/*:refs/remotes/origin/* 
+[remote "upstream"]
+	url = https://github.com/King-Of-Knights/openwrt-6.x.git 
+	fetch = +refs/heads/*:refs/remotes/upstream/* 
+[remote "local"] 
+	url = http://127.0.0.1:3000/lsgx/libwrt-mod.git 
+	fetch = +refs/heads/*:refs/remotes/local/* 
+[branch "main"] 
+	remote = origin 
+	merge = refs/heads/main 
+[branch "test"] 
+	remote = origin 
+	merge = refs/heads/test 
+[branch "dev"] 
+	remote = origin 
+	merge = refs/heads/dev 

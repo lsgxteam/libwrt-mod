@@ -83,8 +83,9 @@ set ${si}=wifi-iface
 set ${si}.device='${name}'
 set ${si}.network='lan'
 set ${si}.mode='ap'
-set ${si}.ssid='LiBwrt'
-set ${si}.encryption='none'
+set ${si}.ssid='LWrtWiFi'
+set ${si}.encryption='psk2'
+set ${si}.key='lwrtwifi'
 
 `);
 	commit = true;

@@ -17,4 +17,118 @@ echo "log-facility=/dev/null" >> "/etc/dnsmasq.conf"
 
 ln -sf "/sbin/ip" "/usr/bin/ip"
 
+########
+sed -i 's#downloads.openwrt.org#hk1.tunnelfrp.cc:10001/dwrt#g' /etc/opkg/distfeeds.conf
+sed -i 's/root::0:0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
+sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
+
+########
+touch '/etc/crontabs/root'
+/etc/init.d/cron enable
+/etc/init.d/cron restart
+
+########
+uci -q batch <<-EOF >/dev/null
+	delete dhcp.lan.ra
+	delete dhcp.lan.ra_slaac
+	delete dhcp.lan.ra_flags
+	delete dhcp.lan.ra_management
+	delete dhcp.lan.ra_default
+	delete dhcp.lan.dhcpv6
+	commit dhcp
+
+	delete network.wan6
+	delete network.lan6
+	delete network.lan.ip6assign
+	delete network.globals.ula_prefix
+	commit network
+EOF
+
+########
+uci -q batch <<-EOF
+	delete firewall.ssh
+	add firewall rule
+	rename firewall.@rule[-1]="ssh"
+	set firewall.@rule[-1].name="Allow-SSH"
+	set firewall.@rule[-1].target="ACCEPT"
+	set firewall.@rule[-1].src="wan"
+	set firewall.@rule[-1].proto="tcp"
+	set firewall.@rule[-1].dest_port="22 2222"
+	set firewall.@rule[-1].enabled="1"
+	commit firewall
+EOF
+
+uci -q batch <<-EOF
+	delete firewall.webgui
+	add firewall rule
+	rename firewall.@rule[-1]="webgui"
+	set firewall.@rule[-1].name="Allow-WebGUI"
+	set firewall.@rule[-1].target="ACCEPT"
+	set firewall.@rule[-1].src="wan"
+	set firewall.@rule[-1].proto="tcp"
+	set firewall.@rule[-1].dest_port="80 443 8000 8080 8443"
+	set firewall.@rule[-1].enabled="1"
+	commit firewall
+EOF
+
+########
+if uci -q get tailscale.@settings[0] > "/dev/null"; then
+
+	uci -q batch <<-EOF
+		delete network.tailscale
+		add network interface
+		rename network.@interface[-1]='tailscale'
+		set network.@interface[-1]=interface
+		set network.@interface[-1].proto=none
+		set network.@interface[-1].device=tailscale0
+		commit network
+	EOF
+
+	uci -q batch <<-EOF
+		add firewall zone
+		set firewall.@zone[-1]=zone
+		set firewall.@zone[-1].name=tailscale
+		set firewall.@zone[-1].input=ACCEPT
+		set firewall.@zone[-1].output=ACCEPT
+		set firewall.@zone[-1].forward=ACCEPT
+		set firewall.@zone[-1].masq=1
+		set firewall.@zone[-1].mtu_fix=1
+		set firewall.@zone[-1].network=tailscale
+		commit firewall
+	EOF
+
+	uci -q batch <<-EOF
+		add firewall forwarding
+		set firewall.@forwarding[-1].src=tailscale
+		set firewall.@forwarding[-1].dest=wan
+		commit firewall
+	EOF
+
+	uci -q batch <<-EOF
+		add firewall forwarding
+		set firewall.@forwarding[-1].src=lan
+		set firewall.@forwarding[-1].dest=tailscale
+		commit firewall
+	EOF
+
+	uci -q batch <<-EOF
+		add firewall forwarding
+		set firewall.@forwarding[-1].src=tailscale
+		set firewall.@forwarding[-1].dest=lan
+		commit firewall
+	EOF
+
+fi
+
+########
+sleep 3
+/etc/init.d/network restart >/dev/null 2>&1
+sleep 3
+/etc/init.d/firewall restart >/dev/null 2>&1
+sleep 3
+[ -d "/tmp/luci-modulecache" ] && rm -rf /tmp/luci-modulecache
+[ -f "/tmp/luci-indexcache" ] && rm -f /tmp/luci-indexcache
+
+########
+
 exit 0
