@@ -1,0 +1,127 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/uci-defaults.sh
+
+NETWORK_OPTIONS_CHANGED=0
+DCHP_OPTIONS_CHANGED=0
+
+###
+
+delete_dhcp_lan_ipv6_option()
+{
+	uci -q batch <<-EOF >/dev/null
+		delete dhcp.lan.ra
+		delete dhcp.lan.ra_slaac
+		delete dhcp.lan.ra_flags
+		delete dhcp.lan.ra_management
+		delete dhcp.lan.ra_default
+		delete dhcp.lan.dhcpv6
+		commit dhcp
+	EOF
+	DCHP_OPTIONS_CHANGED=1
+}
+
+set_dhcp_lan_ignore_disable()
+{
+	uci -q batch <<-EOF >/dev/null
+		set dhcp.lan.ignore="1"
+		commit dhcp
+	EOF
+	DCHP_OPTIONS_CHANGED=1
+}
+
+delete_dhcp_lan_option_list()
+{
+	uci -q batch <<-EOF >/dev/null
+		delete dhcp.lan.dhcp_option
+		commit dhcp
+	EOF
+	DCHP_OPTIONS_CHANGED=1
+}
+
+delete_network_lan_ipv6_option()
+{
+	uci -q batch <<-EOF >/dev/null
+		delete network.wan6
+		delete network.lan6
+		delete network.lan.ip6assign
+		delete network.globals.ula_prefix
+		commit network
+	EOF
+	NETWORK_OPTIONS_CHANGED=1
+}
+
+generate_network_wan_none()
+{
+	uci -q batch <<-EOF >/dev/null
+		delete network.wan
+		add network interface
+		rename network.@interface[-1]="wan"
+		set network.@interface[-1].proto="none"
+		set network.@interface[-1].disabled='1'
+		commit network
+	EOF
+	NETWORK_OPTIONS_CHANGED=1
+}
+
+generate_network_bridge_device()
+{
+	local brlan_name=${1:-"br-lan"}
+	local eth_one_name=${2:-"eth0"}
+	local eth_two_name=${3:-"eth1"}
+	uci -q batch <<-EOF >/dev/null
+		delete network.@device[-1]
+		add network device
+		set network.@device[-1]
+		set network.@device[-1].name="${brlan_name}"
+		set network.@device[-1].type="bridge"
+		add_list network.@device[-1].ports="${eth_one_name}"
+		add_list network.@device[-1].ports="${eth_two_name}"
+		commit network
+	EOF
+	NETWORK_OPTIONS_CHANGED=1
+}
+
+generate_network_lan_dhcp()
+{
+	local brlan_name=${1:-"br-lan"}
+	uci -q batch <<-EOF >/dev/null
+		delete network.lan
+		add network interface
+		rename network.@interface[-1]="lan"
+		set network.@interface[-1].device="${brlan_name}"
+		set network.@interface[-1].proto="dhcp"
+		set network.@interface[-1].failoveripaddr='192.168.11.1'
+		set network.@interface[-1].failovernetmask='255.255.255.0'
+		commit network
+	EOF
+	NETWORK_OPTIONS_CHANGED=1
+}
+
+###
+
+board=$(board_name)
+
+case "$board" in
+ditel,dt-acu100)
+	# delete ipv6 option
+	delete_dhcp_lan_ipv6_option
+	delete_network_lan_ipv6_option
+	# set network option
+	generate_network_wan_none
+	generate_network_bridge_device "br-lan" "eth0" "eth1"
+	generate_network_lan_dhcp "br-lan"
+	# set dhcp option
+	set_dhcp_lan_ignore_disable
+	delete_dhcp_lan_option_list
+	;;
+"*" )
+	;;
+esac
+
+[ "$NETWORK_OPTIONS_CHANGED" = "1" ] && logger -t set-switch-network-mode "set network option done !!!"
+[ "$DCHP_OPTIONS_CHANGED" = "1" ] && logger -t set-switch-network-mode "set dhcp option done !!!"
+
+exit 0
+
