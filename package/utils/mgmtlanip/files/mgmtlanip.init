@@ -1,0 +1,44 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2014 OpenWrt.org
+
+START=99
+
+USE_PROCD=1
+PROG="/usr/bin/mgmtlanip"
+
+config_get_sane()
+{
+	config_get "$@"
+	set -- "$(echo "$1" | tr -d '<>[]{};%?=#\n')"
+}
+
+start_instance()
+{
+	local cfg="$1"
+	local disabled second respawn
+
+	config_get_bool disabled "$cfg" 'disabled' '0'
+	[ "$disabled" == "1" ] && return 1
+
+	procd_open_instance
+	procd_set_param command $PROG
+	config_get_sane second "$cfg" 'second' '10'
+	[ "$second" == "0" ] && second="10"
+	procd_append_param command $second
+	config_get_bool respawn "$cfg" 'respawn' '0'
+	[ "$respawn" == "1" ] && procd_set_param respawn
+	echo "mgmtlanip service has started."
+	procd_close_instance
+}
+
+service_triggers()
+{
+	procd_add_reload_trigger "mgmtlanip"
+}
+
+start_service() 
+{
+	config_load mgmtlanip
+	config_foreach start_instance mgmtlanip
+}
+
